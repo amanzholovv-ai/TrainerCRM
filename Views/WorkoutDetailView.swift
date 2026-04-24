@@ -19,30 +19,13 @@ struct WorkoutDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 12) {
-                    if let _ = clientId, let _ = clientName {
-                        Button {
-                            showReschedule = true   
-                        } label: {
-                            Label("Перенести", systemImage: "calendar.badge.clock")
-                        }
-                    }
+                   
                     Button {
                         showAddExercise = true
                     } label: {
                         Image(systemName: "plus")
                     }
                 }
-            }
-        }
-        .sheet(isPresented: $showReschedule) {
-            if let cid = clientId, let cname = clientName {  // ← вернуть if let здесь
-                RescheduleWorkoutSheet(
-                    store: store,
-                    clientId: cid,
-                    workoutId: workout.id,
-                    clientName: cname,
-                    initialDate: workout.date
-                )
             }
         }
         .sheet(isPresented: $showAddExercise) {
@@ -63,17 +46,24 @@ struct WorkoutDetailView: View {
 
     private var workoutInfoSection: some View {
         Section("Тренировка") {
-            HStack {
+            
+            DatePicker(
+                selection: $workout.date,
+                displayedComponents: .date
+            ) {
                 Image(systemName: "calendar").foregroundColor(.accentColor)
-                Text(workout.date, style: .date)
             }
-            HStack {
+
+            DatePicker(
+                selection: $workout.date,
+                displayedComponents: .hourAndMinute
+            ) {
                 Image(systemName: "clock").foregroundColor(.accentColor)
-                Text(workout.date, style: .time)
             }
+           
             HStack {
                 Image(systemName: "timer").foregroundColor(.accentColor)
-                Text("\(workout.duration) мин")
+                Stepper("\(workout.duration) мин", value: $workout.duration, in: 15...300, step: 15)
             }
 
             // Статус — меняется через Menu

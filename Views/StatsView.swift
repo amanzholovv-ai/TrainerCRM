@@ -4,15 +4,13 @@ struct StatsView: View {
     @EnvironmentObject var store: ClientStore
     @State private var currentWeek = Date()
     @State private var currentMonth = Date()
+    @State private var selectedDay = Date()
     private let calendar = Calendar.current
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    // Переключатель месяца
-                    monthPicker
-
                     // Главные цифры
                     summaryCards
 
@@ -28,6 +26,10 @@ struct StatsView: View {
                 .padding(16)
             }
             .navigationTitle("Статистика")
+            .onAppear {
+                currentMonth = Date()
+                selectedDay = Date()
+            }
             .background(Color(.systemGroupedBackground))
         }
     }
@@ -62,18 +64,39 @@ struct StatsView: View {
 
     private var summaryCards: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Сегодня")
+            HStack {
+                Button {
+                    selectedDay = calendar.date(byAdding: .day, value: -1, to: selectedDay) ?? selectedDay
+                } label: {
+                    Image(systemName: "chevron.left").fontWeight(.semibold)
+                }
+                Spacer()
+                Text(calendar.isDateInToday(selectedDay)
+                     ? "Сегодня"
+                     : selectedDay.formatted(.dateTime.day().month().year()))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                Spacer()
+                Button {
+                    selectedDay = calendar.date(byAdding: .day, value: 1, to: selectedDay) ?? selectedDay
+                } label: {
+                    Image(systemName: "chevron.right").fontWeight(.semibold)
+                }
+            }
+            .padding(.horizontal, 4)
 
             LazyVGrid(
                 columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
                 spacing: 12
             ) {
                 StatBigCard(
-                    title: "Тренировок",
-                    value: "\(todayChargeableCount)",
-                    subtitle: "проведено + неявки",
-                    icon: "figure.run",
-                    color: .purple
+                    title: "Клиентов",
+                    value: "\(todayClientsCount)",
+                    subtitle: calendar.isDateInToday(selectedDay) ? "сегодня" : "за день",
+                    icon: "person.2.fill",
+                    color: .blue
                 )
                 StatBigCard(
                     title: "Часов",
@@ -85,13 +108,32 @@ struct StatsView: View {
                 StatBigCard(
                     title: "Заработано",
                     value: compactMoney(todayChargeableIncome),
-                    subtitle: "сегодня",
+                    subtitle: calendar.isDateInToday(selectedDay) ? "сегодня" : "за день",
                     icon: "banknote.fill",
                     color: .green
                 )
             }
 
             sectionHeader("За месяц").padding(.top, 4)
+
+            HStack {
+                    Button {
+                        currentMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+                    } label: {
+                        Image(systemName: "chevron.left").fontWeight(.semibold)
+                    }
+                    Spacer()
+                    Text(currentMonth, format: .dateTime.year().month(.wide))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Button {
+                        currentMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+                    } label: {
+                        Image(systemName: "chevron.right").fontWeight(.semibold)
+                    }
+                }
+                .padding(.horizontal, 4)
 
             LazyVGrid(
                 columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
@@ -228,9 +270,12 @@ struct StatsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(client.name)
                                 .font(.system(size: 14, weight: .semibold))
-                            Text("Истекает: \(shortDate(client.endDate))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            
+                            if client.totalSessions > 0 {
+                                Text("Истекает: \(shortDate(client.endDate))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
 
                         Spacer()
@@ -329,7 +374,7 @@ struct StatsView: View {
     private var todayChargeableWorkouts: [Workout] {
         store.clients.flatMap { client in
             client.workouts.filter {
-                calendar.isDateInToday($0.date) && self.isChargeable($0)
+                calendar.isDate($0.date, inSameDayAs: selectedDay) && self.isChargeable($0)
             }
         }
     }
@@ -345,8 +390,22 @@ struct StatsView: View {
 
     private var todayChargeableCount: Int { todayChargeableWorkouts.count }
 
+    private var todayClientsCount: Int {
+        let clientIds = store.clients.flatMap { client in
+            client.workouts.filter {
+                calendar.isDate($0.date, inSameDayAs: selectedDay) && $0.status == .completed
+            }.map { _ in client.id }
+        }
+        return Set(clientIds).count
+    }
+
     private var todayChargeableHours: Double {
-        Double(todayChargeableWorkouts.reduce(0) { $0 + $1.duration }) / 60.0
+        let completed = store.clients.flatMap { client in
+            client.workouts.filter {
+                calendar.isDate($0.date, inSameDayAs: selectedDay) && $0.status == .completed
+            }
+        }
+        return Double(completed.reduce(0) { $0 + $1.duration }) / 60.0
     }
 
     private var todayChargeableIncome: Double {
@@ -354,7 +413,13 @@ struct StatsView: View {
     }
 
     private var monthChargeableHours: Double {
-        Double(monthChargeableWorkouts.reduce(0) { $0 + $1.duration }) / 60.0
+        let completed = store.clients.flatMap { client in
+            client.workouts.filter {
+                calendar.isDate($0.date, equalTo: currentMonth, toGranularity: .month) &&
+                $0.status == .completed
+            }
+        }
+        return Double(completed.reduce(0) { $0 + $1.duration }) / 60.0
     }
 
     private var monthChargeableIncome: Double {
@@ -362,22 +427,28 @@ struct StatsView: View {
     }
 
     private func compactMoney(_ value: Double) -> String {
+        if value == 0 { return "0 ₸" }
         if value >= 1_000_000 {
-            return String(format: "%.1fM ₸", value / 1_000_000)
+            let m = value / 1_000_000
+            return m.truncatingRemainder(dividingBy: 1) == 0
+                ? String(format: "%.0fM ₸", m)
+                : String(format: "%.1fM ₸", m)
         } else if value >= 1000 {
-            return String(format: "%.0fK ₸", value / 1000)
+            let k = value / 1000
+            return k.truncatingRemainder(dividingBy: 1) == 0
+                ? String(format: "%.0fK ₸", k)
+                : String(format: "%.1fK ₸", k)
         }
         return String(format: "%.0f ₸", value)
     }
 
     private func formattedHours(_ hours: Double) -> String {
-        // Показываем десятую долю, если меньше 10 часов — иначе округляем до целого.
-        if hours < 10 {
-            return String(format: "%.1f", hours)
-        }
-        return String(format: "%.0f", hours)
+        if hours == 0 { return "0" }
+        return hours.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", hours)
+            : String(format: "%.1f", hours)
     }
-
+    
     private var weekRangeLabel: String {
         guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: currentWeek) else { return "" }
         let start = weekInterval.start
@@ -409,7 +480,9 @@ struct StatsView: View {
     private var clientWorkoutCounts: [UUID: Int] {
         var result: [UUID: Int] = [:]
         for client in store.clients {
+            
             let count = client.workouts.filter {
+                $0.status == .completed &&
                 calendar.isDate($0.date, equalTo: currentMonth, toGranularity: .month)
             }.count
             if count > 0 { result[client.id] = count }
@@ -424,6 +497,7 @@ struct StatsView: View {
     }
 
     private func shortDate(_ date: Date) -> String {
+        guard date > Date(timeIntervalSince1970: 0) else { return "" }
         let fmt = DateFormatter()
         fmt.locale = Locale(identifier: "ru_RU")
         fmt.dateFormat = "d MMM yyyy"

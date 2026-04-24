@@ -26,6 +26,11 @@ struct Client: Identifiable, Codable {
     /// остаются с прежним ID и не учитываются в счётчиках нового абонемента.
     var currentSubscriptionId: UUID? = nil
 
+    /// История всех прошлых абонементов (не включает текущий активный).
+    /// Заполняется автоматически при создании нового абонемента.
+    /// Optional чтобы JSONDecoder не падал на старых документах без этого поля.
+    var subscriptionHistory: [SubscriptionRecord]?
+
     var workouts: [Workout]
     var attendance: [AttendanceRecord]
 
@@ -45,13 +50,20 @@ struct Client: Identifiable, Codable {
         self.attendance = attendance
     }
 
-    // MARK: - Вычисляемые свойства
+   
 
-    /// ID тренировок, принадлежащих текущему абонементу. Используется для
-    /// фильтрации `attendance`, чтобы счётчики не «съели» историю прошлых абонементов.
     private var currentSubscriptionWorkoutIds: Set<UUID>? {
         guard let currentId = currentSubscriptionId else { return nil }
-        return Set(workouts.filter { $0.subscriptionId == currentId }.map { $0.id })
+        let cal = Calendar.current
+        let startOfStart = cal.startOfDay(for: startDate)
+        let endOfEnd = cal.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+        return Set(workouts.filter { workout in
+            if workout.subscriptionId == currentId { return true }
+            if workout.subscriptionId == nil,
+               workout.date >= startOfStart,
+               workout.date <= endOfEnd { return true }
+            return false
+        }.map { $0.id })
     }
 
     /// Фактически проведённые тренировки (клиент пришёл) — только в рамках текущего абонемента.
@@ -89,11 +101,11 @@ struct Client: Identifiable, Codable {
     }
 
     var subscriptionStatus: SubscriptionStatus {
-        if endDate < Date() || remainingSessions == 0 { return .expired }
+        let endOfEnd = Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+        if endOfEnd < Date() || remainingSessions == 0 { return .expired }
         if remainingSessions <= 3 { return .low }
         return .active
     }
-
     // SwiftUI Color из hex
     var color: Color {
         Color(hex: colorHex) ?? .accentColor
@@ -191,6 +203,37 @@ struct Exercise: Identifiable, Codable {
         self.weight = weight
         self.comment = comment
         self.videoURL = videoURL
+    }
+}
+
+// MARK: - Запись прошлого абонемента (история)
+// Сохраняется внутри Client при создании нового абонемента.
+
+struct SubscriptionRecord: Identifiable, Codable, Equatable {
+    let id: UUID           // совпадает с subscriptionId тренировок этого абонемента
+    var startDate: Date
+    var endDate: Date
+    var totalSessions: Int
+    var packagePrice: Double?
+    var notes: String?
+    let createdAt: Date
+
+    init(
+        id: UUID,
+        startDate: Date,
+        endDate: Date,
+        totalSessions: Int,
+        packagePrice: Double? = nil,
+        notes: String? = nil,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.startDate = startDate
+        self.endDate = endDate
+        self.totalSessions = totalSessions
+        self.packagePrice = packagePrice
+        self.notes = notes
+        self.createdAt = createdAt
     }
 }
 

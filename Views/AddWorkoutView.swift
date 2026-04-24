@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddWorkoutView: View {
     var onSave: (Workout) -> Void
+    var hasActiveSubscription: Bool = true  // ← новый параметр
 
     @Environment(\.dismiss) private var dismiss
     @State private var date = Date()
@@ -13,6 +14,25 @@ struct AddWorkoutView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // Баннер если нет абонемента
+                if !hasActiveSubscription {
+                    Section {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Нет активного абонемента")
+                                    .font(.subheadline).fontWeight(.semibold)
+                                Text("Тренировка будет создана со статусом «Запланировано»")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 Section("Дата и время") {
                     DatePicker(
                         "Когда тренировка",
@@ -30,13 +50,16 @@ struct AddWorkoutView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Статус") {
-                    Picker("Статус", selection: $status) {
-                        ForEach(WorkoutStatus.allCases, id: \.self) { s in
-                            Text(s.rawValue).tag(s)
+                // Статус — только если есть абонемент
+                if hasActiveSubscription {
+                    Section("Статус") {
+                        Picker("Статус", selection: $status) {
+                            ForEach(WorkoutStatus.allCases, id: \.self) { s in
+                                Text(s.rawValue).tag(s)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
                 }
             }
             .navigationTitle("Новая тренировка")
@@ -46,11 +69,12 @@ struct AddWorkoutView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Сохранить") {
+                        let finalStatus: WorkoutStatus = hasActiveSubscription ? status : .planned
                         let workout = Workout(
                             date: date,
                             duration: duration,
                             exercises: [],
-                            status: status
+                            status: finalStatus
                         )
                         onSave(workout)
                         dismiss()

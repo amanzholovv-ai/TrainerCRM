@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Быстрое добавление тренировки из таймлайна дня
 struct QuickAddWorkoutView: View {
     let hour: Int
     let date: Date
 
     @EnvironmentObject var store: ClientStore
     @Environment(\.dismiss) private var dismiss
+
+    @State private var pendingClient: Client? = nil
 
     private let calendar = Calendar.current
 
@@ -22,8 +23,12 @@ struct QuickAddWorkoutView: View {
                 } else {
                     ForEach(store.clients) { client in
                         Button {
-                            addWorkout(for: client)
-                            dismiss()
+                            if client.totalSessions == 0 {
+                                pendingClient = client
+                            } else {
+                                addWorkout(for: client)
+                                dismiss()
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 Circle()
@@ -31,6 +36,12 @@ struct QuickAddWorkoutView: View {
                                     .frame(width: 12, height: 12)
                                 Text(client.name)
                                     .foregroundColor(.primary)
+                                Spacer()
+                                if client.totalSessions == 0 {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.caption)
+                                }
                             }
                         }
                     }
@@ -43,6 +54,22 @@ struct QuickAddWorkoutView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
                 }
+            }
+            .alert("Нет абонемента", isPresented: Binding(
+                get: { pendingClient != nil },
+                set: { if !$0 { pendingClient = nil } }
+            )) {
+                Button("Всё равно добавить") {
+                    if let client = pendingClient {
+                        addWorkout(for: client)
+                    }
+                    dismiss()
+                }
+                Button("Отмена", role: .cancel) {
+                    pendingClient = nil
+                }
+            } message: {
+                Text("У клиента «\(pendingClient?.name ?? "")» нет активного абонемента. Тренировка будет создана как запланированная.")
             }
         }
     }

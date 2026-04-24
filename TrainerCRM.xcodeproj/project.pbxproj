@@ -10,6 +10,7 @@
 		011DA1BD2F4B51BF006FA149 /* AddClientView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011DA1B62F4B51BF006FA149 /* AddClientView.swift */; };
 		011DA1BE2F4B51BF006FA149 /* AddWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011DA1B72F4B51BF006FA149 /* AddWorkoutView.swift */; };
 		011DA1BF2F4B51BF006FA149 /* ClientDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011DA1B92F4B51BF006FA149 /* ClientDetailView.swift */; };
+		01AB00022F9000001AB00002 /* SubscriptionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01AB00012F9000001AB00001 /* SubscriptionHistoryView.swift */; };
 		011DA1C12F4B51BF006FA149 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011DA1BB2F4B51BF006FA149 /* ContentView.swift */; };
 		011DA1CA2F4B8352006FA149 /* Clients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011DA1C92F4B8352006FA149 /* Clients.swift */; };
 		011F0FB22F6DCBDF00ACC68B /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 011F0FB12F6DCBDF00ACC68B /* FirebaseStorage */; };
@@ -41,6 +42,7 @@
 		011DA1B62F4B51BF006FA149 /* AddClientView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddClientView.swift; sourceTree = "<group>"; };
 		011DA1B72F4B51BF006FA149 /* AddWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddWorkoutView.swift; sourceTree = "<group>"; };
 		011DA1B92F4B51BF006FA149 /* ClientDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientDetailView.swift; sourceTree = "<group>"; };
+		01AB00012F9000001AB00001 /* SubscriptionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionHistoryView.swift; sourceTree = "<group>"; };
 		011DA1BB2F4B51BF006FA149 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		011DA1C92F4B8352006FA149 /* Clients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clients.swift; sourceTree = "<group>"; };
 		01A1343B2F44405C00AB24C8 /* TrainerCRM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrainerCRM.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,6 +104,7 @@
 				01EB9EEE2F915FC400EC4450 /* AccountView.swift */,
 				011DA1BB2F4B51BF006FA149 /* ContentView.swift */,
 				011DA1B92F4B51BF006FA149 /* ClientDetailView.swift */,
+				01AB00012F9000001AB00001 /* SubscriptionHistoryView.swift */,
 				011DA1B62F4B51BF006FA149 /* AddClientView.swift */,
 				011DA1B72F4B51BF006FA149 /* AddWorkoutView.swift */,
 				01C587302F4CDBC100D08413 /* ClientsListView.swift */,
@@ -264,6 +267,7 @@
 				01C587AB2F520F2900D08413 /* StatsView.swift in Sources */,
 				011DA1CA2F4B8352006FA149 /* Clients.swift in Sources */,
 				011DA1BF2F4B51BF006FA149 /* ClientDetailView.swift in Sources */,
+				01AB00022F9000001AB00002 /* SubscriptionHistoryView.swift in Sources */,
 				01EB9EEF2F915FCD00EC4450 /* AccountView.swift in Sources */,
 				011DA1C12F4B51BF006FA149 /* ContentView.swift in Sources */,
 			);

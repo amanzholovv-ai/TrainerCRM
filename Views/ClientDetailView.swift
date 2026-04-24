@@ -12,7 +12,11 @@ struct ClientDetailView: View {
     @EnvironmentObject var store: ClientStore
     @State private var activeSheet: ActiveSheet?
     @State private var showRenewalSheet = false
-    
+    @State private var showHistory = false
+    @FocusState private var focusedField: ClientField?
+
+    enum ClientField { case name, phone }
+
     // Сортируем один раз — используем везде
     private var sortedWorkouts: [Workout] {
         client.workouts.sorted { $0.date < $1.date }
@@ -23,8 +27,14 @@ struct ClientDetailView: View {
             
             // MARK: — Клиент
             Section("Клиент") {
-                Text(client.name).font(.headline)
-                Text(client.phone).foregroundColor(.secondary)
+                TextField("Имя клиента", text: $client.name)
+                    .font(.headline)
+                    .focused($focusedField, equals: .name)
+                    .onSubmit { store.update(client) }
+                TextField("Номер телефона", text: $client.phone)
+                    .foregroundColor(.secondary)
+                    .keyboardType(.phonePad)
+                    .focused($focusedField, equals: .phone)
             }
             
             // MARK: — Абонемент
@@ -34,18 +44,34 @@ struct ClientDetailView: View {
                     .listRowInsets(EdgeInsets())  // убирает отступы List
                 
             
-                Button("Продлить абонемент") {
+                Button {
                     showRenewalSheet = true
+                } label: {
+                    Label("Продлить абонемент", systemImage: "arrow.clockwise.circle")
                 }
                 .buttonStyle(.borderless)
-                
-                Button("Отправить отчет") {
+
+                Button {
                     sendReport()
+                } label: {
+                    Label("Отправить отчет", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.borderless)
-                
-                Button("Удалить абонемент", role: .destructive) {
+
+                // Показываем только если есть прошлые абонементы
+                if !(client.subscriptionHistory ?? []).isEmpty {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Label("История абонементов (\((client.subscriptionHistory ?? []).count))", systemImage: "clock.arrow.circlepath")
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                Button(role: .destructive) {
                     store.removeSubscription(for: client.id)
+                } label: {
+                    Label("Удалить абонемент", systemImage: "trash")
                 }
                 .buttonStyle(.borderless)
             } header: {
@@ -101,29 +127,55 @@ struct ClientDetailView: View {
             }
             
             // MARK: — Прогресс
+            
             Section("Прогресс") {
-                let total = client.workouts.count
-                let completed = client.workouts.filter { $0.isCompleted }.count
-                let progress = total == 0 ? 0.0 : Double(completed) / Double(total)
-                
-                Text("Всего тренировок: \(total)")
-                Text("Завершено: \(completed)")
-                Text("Процент выполнения: \(Int(progress * 100))%")
-                ProgressView(value: progress)
-                
-                if let lastWorkout = sortedWorkouts.last {
-                    Text("Последняя: \(lastWorkout.date.formatted(date: .abbreviated, time: .omitted))")
+                if client.totalSessions > 0 {
+                    Text("Занятий по абонементу: \(client.totalSessions)")
+                    Text("Проведено: \(client.completedSessions)")
+                    if client.noShowSessionsCount > 0 {
+                        Text("Неявок: \(client.noShowSessionsCount)")
+                            .foregroundColor(.orange)
+                    }
+                    Text("Остаток: \(client.remainingSessions)")
+                        .foregroundColor(client.remainingSessions <= 3 ? .red : .primary)
+                    Text("Использовано: \(Int(client.subscriptionProgress * 100))%")
+                    ProgressView(value: client.subscriptionProgress)
+                        .tint(client.remainingSessions <= 3 ? .red : .accentColor)
+                } else {
+                    Text("Нет активного абонемента")
+                        .foregroundColor(.secondary)
+                }
+
+                if let lastWorkout = sortedWorkouts.last(where: { $0.status == .completed }) {
+                    Text("Последняя проведённая: \(lastWorkout.date.formatted(date: .abbreviated, time: .omitted))")
                         .foregroundColor(.secondary)
                 }
             }
         }
         .navigationTitle(client.name)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Готово") {
+                    focusedField = nil
+                    store.update(client)
+                }
+            }
+        }
+        .onChange(of: focusedField) { _, newField in
+            if newField == nil {
+                store.update(client)
+            }
+        }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .workout:
-                AddWorkoutView(onSave: { workout in
-                    store.addWorkout(workout, to: client.id)
-                })
+                AddWorkoutView(
+                    onSave: { workout in
+                        store.addWorkout(workout, to: client.id)
+                    },
+                    hasActiveSubscription: client.totalSessions > 0
+                )
                 
             case .subscription:
                 AddSubscriptionSheet(
@@ -139,6 +191,10 @@ struct ClientDetailView: View {
                 isExtension: true
             )
             .environmentObject(store)
+        }
+        .sheet(isPresented: $showHistory) {
+            SubscriptionHistoryView(client: client)
+                .environmentObject(store)
         }
     }
 
@@ -171,20 +227,40 @@ struct ClientDetailView: View {
         let today = Date()
         let newStart = max(today, client.endDate)
         let newEnd = calendar.date(byAdding: .month, value: 1, to: newStart) ?? newStart
-        let weekdays: [Bool] = client.weekdaySelected?.count == 7
-            ? client.weekdaySelected!
-            : [true, false, true, false, true, false, false]
+
+        let weekdays: [Bool] = client.weekdaySelected ?? [true, false, true, false, true, false, false]
+
         let time: Date = client.trainingTime
-            ?? calendar.date(from: DateComponents(hour: 10, minute: 0))
-            ?? today
+            ?? calendar.date(from: DateComponents(hour: 10, minute: 0))!
+        let totalSessions = client.totalSessions > 0 ? client.totalSessions : 10
+
+        let avgSessionPrice: Double = {
+            // 1. из абонемента
+            if let package = client.packagePrice,
+               client.totalSessions > 0 {
+                return package / Double(client.totalSessions)
+            }
+
+            // 2. из тренировок
+            let prices = client.workouts.compactMap { $0.price }.filter { $0 > 0 }
+
+            if !prices.isEmpty {
+                return prices.reduce(0, +) / Double(prices.count)
+            }
+
+            // 3. fallback
+            return 0
+        }()
+        
         return SubscriptionInitialData(
-            totalSessions: client.totalSessions > 0 ? client.totalSessions : 10,
+            sessionPrice: avgSessionPrice,
+            totalSessions: totalSessions,
             startDate: newStart,
             endDate: newEnd,
             weekdaySelected: weekdays,
             trainingTime: time,
             notes: client.subscriptionNotes ?? "",
-            packagePrice: client.packagePrice
+            packagePrice: avgSessionPrice * Double(totalSessions)
         )
     }
     
@@ -274,3 +350,4 @@ struct ClientDetailView: View {
 extension ClientDetailView.ActiveSheet: Identifiable {
     var id: Int { hashValue }
 }
+

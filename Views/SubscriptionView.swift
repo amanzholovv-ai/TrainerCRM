@@ -65,13 +65,16 @@ struct SubscriptionCardView: View {
 
         let price: Double? = {
             if let saved = client.packagePrice { return saved }
-            if let per = planned.first?.price, client.totalSessions > 0 {
+            // Ищем цену в любой тренировке — не только запланированной
+            let anyWorkout = client.workouts.first { $0.price != nil && $0.price != 0 }
+            if let per = anyWorkout?.price, client.totalSessions > 0 {
                 return per * Double(client.totalSessions)
             }
             return nil
         }()
 
         return SubscriptionInitialData(
+            sessionPrice: (price ?? 0) / Double(max(client.totalSessions, 1)),
             totalSessions: client.totalSessions,
             startDate: client.startDate,
             endDate: client.endDate,
@@ -203,9 +206,14 @@ struct SubscriptionCardView: View {
             Image(systemName: "ticket")
                 .font(.system(size: 28))
                 .foregroundColor(.secondary)
-            Text("Абонемент не оформлен")
-                .font(.system(size: 14, weight: .semibold))
+            
+            Text("Нет активного абонемента")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.primary)
+            Text("Оформите абонемент, чтобы начать тренировки")
+                .font(.system(size: 13))
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
             Button { showAddSheet = true } label: {
                 Text("Оформить абонемент")
                     .font(.system(size: 14, weight: .semibold))
@@ -226,6 +234,7 @@ struct SubscriptionCardView: View {
     }
 
     private func formatDate(_ date: Date) -> String {
+        guard date > Date(timeIntervalSince1970: 0) else { return "—" }
         let fmt = DateFormatter()
         fmt.locale = Locale(identifier: "ru_RU")
         fmt.dateFormat = "d MMM yyyy"
@@ -236,6 +245,7 @@ struct SubscriptionCardView: View {
 // MARK: - Начальные данные для формы (используются в режиме редактирования)
 
 struct SubscriptionInitialData {
+    let sessionPrice: Double
     var totalSessions: Int
     var startDate: Date
     var endDate: Date
@@ -301,8 +311,20 @@ struct AddSubscriptionSheet: View {
     private let weekdayShortLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
     private var packagePriceValue: Double? {
-        let trimmed = packagePriceText.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty, let v = Double(trimmed), v >= 0 else { return nil }
+        // Сначала пробуем NumberFormatter с ru_RU — он корректно читает "54 800" и "54 800,50"
+        let ruFormatter = NumberFormatter()
+        ruFormatter.locale = Locale(identifier: "ru_RU")
+        ruFormatter.numberStyle = .decimal
+        if let n = ruFormatter.number(from: packagePriceText), n.doubleValue >= 0 {
+            return n.doubleValue
+        }
+        // Fallback: убираем пробелы (включая неразрывные), заменяем запятую на точку
+        let stripped = packagePriceText
+            .components(separatedBy: CharacterSet.whitespaces)
+            .joined()
+            .replacingOccurrences(of: "\u{00A0}", with: "")
+            .replacingOccurrences(of: ",", with: ".")
+        guard !stripped.isEmpty, let v = Double(stripped), v >= 0 else { return nil }
         return v
     }
 
@@ -314,6 +336,11 @@ struct AddSubscriptionSheet: View {
         f.numberStyle = .decimal
         f.maximumFractionDigits = 2
         return f.string(from: NSNumber(value: per)) ?? String(format: "%.2f", per)
+    }
+    
+    private var canSave: Bool {
+        guard let price = packagePriceValue else { return false }
+        return price > 0 && totalSessions > 0
     }
 
     var body: some View {
@@ -354,6 +381,13 @@ struct AddSubscriptionSheet: View {
                 Section("Стоимость") {
                     TextField("Стоимость пакета", text: $packagePriceText)
                         .keyboardType(.decimalPad)
+                    
+                    if let price = packagePriceValue, price == 0 {
+                            Text("Цена не может быть 0")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    
                     HStack {
                         Text("Цена за тренировку")
                         Spacer()
@@ -426,6 +460,7 @@ struct AddSubscriptionSheet: View {
                         dismiss()
                     }
                     .fontWeight(.bold)
+                    .disabled(!canSave)
                 }
             }
         }

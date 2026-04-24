@@ -16,36 +16,45 @@ struct MonthCalendarView: View {
     private let calendar = Calendar.current
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 12) {
-                weekdayLabels
-                monthGrid
-            }
-            .padding(.horizontal)
-            .background(Color.black)
-            .zIndex(1)
-
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 1)
-                .padding(.top, 8)
-
+        ScrollViewReader { proxy in
             ScrollView {
-                dayWorkoutsScrollContent
+                VStack(spacing: 0) {
+                    // Сетка месяца — скроллится вместе с контентом
+                    VStack(spacing: 12) {
+                        weekdayLabels
+                        monthGrid
+                    }
                     .padding(.horizontal)
+                    .padding(.bottom, 8)
+
+                    Rectangle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 1)
+
+                    // Тренировки выбранного дня
+                    Color.clear.frame(height: 0).id("monthTop")
+                    dayWorkoutsScrollContent
+                        .padding(.horizontal)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .onChange(of: currentMonth) { _, newMonth in
+                if !calendar.isDate(selectedDate, equalTo: newMonth, toGranularity: .month) {
+                    selectedDate = newMonth
+                }
+                withAnimation {
+                    proxy.scrollTo("monthTop", anchor: .top)
+                }
+            }
+            .onChange(of: selectedDate) { _, _ in
+                withAnimation {
+                    proxy.scrollTo("monthTop", anchor: .top)
+                }
+            }
         }
         .background(Color.black)
-        
         .sheet(item: $editingRef) { ref in
             CalendarWorkoutEditSheet(store: store, ref: ref)
-                
-        }
-        .onChange(of: currentMonth) { _, newMonth in
-            if !calendar.isDate(selectedDate, equalTo: newMonth, toGranularity: .month) {
-                selectedDate = newMonth
-            }
         }
     }
 

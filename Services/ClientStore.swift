@@ -237,7 +237,8 @@ final class ClientStore: ObservableObject {
         }()
 
         var newWorkout = workout
-        newWorkout.price = pricePerWorkout   // 🔥 ВОТ ЭТО КЛЮЧ
+        newWorkout.price = pricePerWorkout == 0 ? newWorkout.price : pricePerWorkout
+        newWorkout.subscriptionId = client.currentSubscriptionId 
 
         client.workouts.append(newWorkout)
 
@@ -413,17 +414,28 @@ final class ClientStore: ObservableObject {
         var client = clients[idx]
        
 
-        if !isExtension {
-            // Новый абонемент
-            client.currentSubscriptionId = UUID()
-            client.startDate = subscription.startDate
-            client.endDate = subscription.endDate
-            client.totalSessions = sessions
-        } else {
-            // Продление
-            client.totalSessions += sessions
-            client.endDate = max(client.endDate, subscription.endDate)
+        // Всегда создаём НОВЫЙ абонемент — и при продлении, и при создании с нуля.
+        // isExtension влияет только на заголовок формы, но не на логику хранения.
+        // Старый абонемент сохраняется в историю.
+        if let oldId = client.currentSubscriptionId,
+           client.totalSessions > 0,
+           !(client.subscriptionHistory ?? []).contains(where: { $0.id == oldId }) {
+            let record = SubscriptionRecord(
+                id: oldId,
+                startDate: client.startDate,
+                endDate: client.endDate,
+                totalSessions: client.totalSessions,
+                packagePrice: client.packagePrice,
+                notes: client.subscriptionNotes
+            )
+            if client.subscriptionHistory == nil { client.subscriptionHistory = [] }
+            client.subscriptionHistory!.append(record)
         }
+        // Новый абонемент с чистым счётчиком занятий
+        client.currentSubscriptionId = UUID()
+        client.startDate = subscription.startDate
+        client.endDate = subscription.endDate
+        client.totalSessions = sessions
         // Сохраняем метаданные — пригодятся при редактировании
         client.weekdaySelected = subscription.weekdaySelected
         client.trainingTime = subscription.trainingTime
@@ -491,6 +503,13 @@ final class ClientStore: ObservableObject {
 
         clients[idx] = client
         saveClient(client)
+    }
+
+    /// Удаляет запись из истории абонементов клиента.
+    func removeSubscriptionRecord(recordId: UUID, for clientId: UUID) {
+        guard let idx = clients.firstIndex(where: { $0.id == clientId }) else { return }
+        clients[idx].subscriptionHistory?.removeAll { $0.id == recordId }
+        saveClient(clients[idx])
     }
 
     /// Снимает активный абонемент, удаляя только запланированные тренировки.
@@ -572,7 +591,7 @@ final class ClientStore: ObservableObject {
             let wd = calendar.component(.weekday, from: day)
             if let uiIdx = uiIndex(forCalendarWeekday: wd), weekdaySelected[uiIdx] {
                 if let atTime = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) {
-                    if atTime >= startDate, atTime <= endCap { results.append(atTime) }
+                    if atTime <= endCap { results.append(atTime) }
                 }
             }
             guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }

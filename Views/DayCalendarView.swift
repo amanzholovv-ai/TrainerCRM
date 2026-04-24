@@ -50,7 +50,9 @@ struct DayCalendarView: View {
                                 contentWidth: contentWidth
                             )
                         }
-
+                        
+                    
+                        
                         ForEach(laneAssignments(for: refs), id: \.ref.workoutId) { lane in
                             let laneGap: CGFloat = 2
                             let total = max(1, lane.totalLanes)
@@ -119,6 +121,21 @@ struct DayCalendarView: View {
                     .frame(width: contentWidth, height: DayCalendarLayout.timelineHeight, alignment: .topLeading)
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .overlay {                            // ← ДОБАВЬ ПОСЛЕ scrollBounceBehavior
+                    if refs.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 32))
+                                .foregroundColor(.secondary.opacity(0.5))
+                            Text("Нет тренировок")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text("Нажмите на время, чтобы добавить")
+                                .font(.caption)
+                                .foregroundColor(.secondary.opacity(0.7))
+                        }
+                    }
+                }
                 .onAppear {
                     scrollToNowIfNeeded(proxy: proxy)
                 }
@@ -601,38 +618,83 @@ struct CalendarWorkoutEditSheet: View {
         )
     }
 
+    private var client: Client? {
+        store.clients.first { $0.id == ref.clientId }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Клиент") {
-                    Text(ref.clientName)
-                        .foregroundStyle(.primary)
-                }
-                .listRowBackground(Color(white: 0.1))
 
+                // MARK: — Клиент + абонемент
+                Section {
+                    // Имя клиента с цветным индикатором
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(ref.clientColor)
+                            .frame(width: 10, height: 10)
+                        Text(ref.clientName)
+                            .font(.headline)
+                        Spacer()
+                        if let c = client {
+                            subscriptionBadge(c)
+                        }
+                    }
+                    .padding(.vertical, 2)
+
+                    // Прогресс абонемента
+                    if let c = client, c.totalSessions > 0 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Абонемент")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(c.remainingSessions) из \(c.totalSessions) занятий")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(c.remainingSessions <= 3 ? .red : .primary)
+                            }
+                            ProgressView(value: c.subscriptionProgress)
+                                .tint(c.remainingSessions <= 3 ? .red : ref.clientColor)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .listRowBackground(Color(white: 0.12))
+
+                // MARK: — Дата и время
                 Section("Дата и время") {
                     DatePicker("Дата", selection: dateOnlyBinding, displayedComponents: .date)
                     DatePicker("Время", selection: timeOnlyBinding, displayedComponents: .hourAndMinute)
                 }
-                .listRowBackground(Color(white: 0.1))
+                .listRowBackground(Color(white: 0.12))
 
+                // MARK: — Параметры
                 Section("Параметры") {
-                    Stepper("Длительность: \(workoutBinding.wrappedValue.duration) мин", value: durationBinding, in: 15...300, step: 15)
+                    Stepper(
+                        "Длительность: \(workoutBinding.wrappedValue.duration) мин",
+                        value: durationBinding, in: 15...300, step: 15
+                    )
                     Picker("Статус", selection: statusBinding) {
-                        ForEach(WorkoutStatus.allCases, id: \.self) { status in
-                            Text(status.rawValue).tag(status)
+                        ForEach(WorkoutStatus.allCases, id: \.self) { s in
+                            Text(s.rawValue).tag(s)
                         }
                     }
                 }
-                .listRowBackground(Color(white: 0.1))
+                .listRowBackground(Color(white: 0.12))
 
+                // MARK: — Удалить
                 Section {
-                    Button("Удалить тренировку", role: .destructive) {
+                    Button(role: .destructive) {
                         store.removeWorkout(workoutId: ref.workoutId, clientId: ref.clientId)
                         dismiss()
+                    } label: {
+                        Label("Удалить тренировку", systemImage: "trash")
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
-                .listRowBackground  (Color(white: 0.1))
+                .listRowBackground(Color(white: 0.12))
             }
             .scrollContentBackground(.hidden)
             .background(Color.black)
@@ -648,6 +710,33 @@ struct CalendarWorkoutEditSheet: View {
                 }
             }
         }
+    }
+
+    // MARK: — Бейдж статуса абонемента
+
+    @ViewBuilder
+    private func subscriptionBadge(_ c: Client) -> some View {
+        let remaining = c.remainingSessions
+        let (color, label): (Color, String) = {
+            switch c.subscriptionStatus {
+            case .expired: return (.red,    "Истёк")
+            case .low:     return (.orange, "\(remaining) ост.")
+            case .active:  return (.green,  "\(remaining) ост.")
+            }
+        }()
+
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(color.opacity(0.15)))
     }
 }
 
@@ -665,7 +754,7 @@ extension WorkoutStatus {
 
     var calendarStatusIconColor: Color {
         switch self {
-        case .planned: return Color.gray.opacity(0.45)
+        case .planned: return Color.white.opacity(0.50)
         case .completed: return .green
         case .cancelled: return .red
         case .noShow: return .orange
@@ -678,6 +767,16 @@ extension WorkoutStatus {
         case .completed: return Color.green.opacity(0.14)
         case .cancelled: return Color.red.opacity(0.14)
         case .noShow: return Color.orange.opacity(0.14)
+        }
+    }
+
+    // Цветная точка для M-размера блоков в недельном виде
+    var calendarStatusDotColor: Color {
+        switch self {
+        case .planned: return Color.white.opacity(0.40)
+        case .completed: return Color.green
+        case .cancelled: return Color.red
+        case .noShow: return Color.orange
         }
     }
 }
