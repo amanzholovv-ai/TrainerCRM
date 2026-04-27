@@ -257,10 +257,19 @@ struct SubscriptionHistoryDetailView: View {
     private func sendReport() {
         let text = generateReportText()
         let vc = UIActivityViewController(activityItems: [text], applicationActivities: nil)
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let root = scene.windows.first?.rootViewController {
-            root.present(vc, animated: true)
+
+        guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.keyWindow?.rootViewController
+        else { return }
+
+        // Поднимаемся до верхнего presented контроллера
+        var top: UIViewController = root
+        while let presented = top.presentedViewController {
+            top = presented
         }
+        top.present(vc, animated: true)
     }
 
     private func generateReportText() -> String {

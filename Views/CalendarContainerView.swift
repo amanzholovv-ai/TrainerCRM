@@ -32,13 +32,22 @@ struct CalendarContainerView: View {
                 dateNavigationHeader
 
                 Group {
-                    switch selectedMode {
-                    case .day:
-                        DayCalendarView(store: store, date: referenceDate)
-                    case .week:
-                        WeekCalendarView(store: store, weekContaining: referenceDate)
-                    case .month:
-                        MonthCalendarView(store: store, currentMonth: referenceDate)
+                    if store.clients.isEmpty {
+                        EmptyStateDarkView(
+                            icon: "calendar.badge.plus",
+                            title: "Нет тренировок",
+                            subtitle: "Добавьте клиентов и оформите абонемент, чтобы тренировки появились в календаре"
+                        )
+                        .background(Color.black)
+                    } else {
+                        switch selectedMode {
+                        case .day:
+                            DayCalendarView(store: store, date: referenceDate)
+                        case .week:
+                            WeekCalendarView(store: store, weekContaining: referenceDate)
+                        case .month:
+                            MonthCalendarView(store: store, currentMonth: referenceDate)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

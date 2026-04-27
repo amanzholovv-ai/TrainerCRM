@@ -9,21 +9,36 @@ struct StatsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Главные цифры
-                    summaryCards
-
-                    // Загрузка по дням недели
-                    workloadChart
-
-                    // Статус абонементов
-                    subscriptionStatus
-
-                    // Топ клиенты по тренировкам
-                    topClients
+            Group {
+                if store.isLoadingClients {
+                    VStack(spacing: 12) {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.4)
+                        Text("Загрузка данных...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if store.clients.isEmpty {
+                    EmptyStateView(
+                        icon: "chart.bar",
+                        title: "Нет данных",
+                        subtitle: "Добавьте клиентов и проведите первые тренировки — здесь появится статистика"
+                    )
+                } else {
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            summaryCards
+                            workloadChart
+                            subscriptionStatus
+                            topClients
+                        }
+                        .padding(16)
+                    }
+                    .background(Color(.systemGroupedBackground))
                 }
-                .padding(16)
             }
             .navigationTitle("Статистика")
             .onAppear {
@@ -405,7 +420,8 @@ struct StatsView: View {
                 calendar.isDate($0.date, inSameDayAs: selectedDay) && $0.status == .completed
             }
         }
-        return Double(completed.reduce(0) { $0 + $1.duration }) / 60.0
+        let uniqueHours = Set(completed.map { calendar.component(.hour, from: $0.date) })
+        return Double(uniqueHours.count)
     }
 
     private var todayChargeableIncome: Double {
@@ -419,7 +435,13 @@ struct StatsView: View {
                 $0.status == .completed
             }
         }
-        return Double(completed.reduce(0) { $0 + $1.duration }) / 60.0
+        // Уникальные слоты: (день, час) — два клиента в один час = 1 час
+        let uniqueSlots = Set(completed.map { workout -> String in
+            let day  = calendar.component(.day,  from: workout.date)
+            let hour = calendar.component(.hour, from: workout.date)
+            return "\(day)-\(hour)"
+        })
+        return Double(uniqueSlots.count)
     }
 
     private var monthChargeableIncome: Double {
@@ -427,19 +449,19 @@ struct StatsView: View {
     }
 
     private func compactMoney(_ value: Double) -> String {
-        if value == 0 { return "0 ₸" }
+        if value == 0 { return "0" }
         if value >= 1_000_000 {
             let m = value / 1_000_000
             return m.truncatingRemainder(dividingBy: 1) == 0
-                ? String(format: "%.0fM ₸", m)
-                : String(format: "%.1fM ₸", m)
+                ? String(format: "%.0fM", m)
+                : String(format: "%.1fM", m)
         } else if value >= 1000 {
             let k = value / 1000
             return k.truncatingRemainder(dividingBy: 1) == 0
-                ? String(format: "%.0fK ₸", k)
-                : String(format: "%.1fK ₸", k)
+                ? String(format: "%.0fK", k)
+                : String(format: "%.1fK", k)
         }
-        return String(format: "%.0f ₸", value)
+        return String(format: "%.0f", value)
     }
 
     private func formattedHours(_ hours: Double) -> String {
@@ -464,9 +486,13 @@ struct StatsView: View {
         var counts = Array(repeating: 0, count: 7)
         guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: currentWeek) else { return counts }
 
+        // Считаем только реально проведённые: .completed и .noShow
+        // Отменённые и запланированные не учитываются — они не были проведены
         let weekWorkouts = store.clients.flatMap { client in
             client.workouts.filter {
-                $0.date >= weekInterval.start && $0.date < weekInterval.end
+                $0.date >= weekInterval.start &&
+                $0.date < weekInterval.end &&
+                ($0.status == .completed || $0.status == .noShow)
             }
         }
         for workout in weekWorkouts {

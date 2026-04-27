@@ -16,9 +16,28 @@ struct ContentView: View {
     @State private var showPassword = false
     @State private var showConfirmPassword = false
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @State private var showOnboarding = false
+
     var body: some View {
         if authState.isLoggedIn {
             mainTabView
+                .onAppear {
+                    if !hasSeenOnboarding {
+                        showOnboarding = true
+                    }
+                }
+                // Планируем уведомления как только Firestore прислал первый снапшот
+                .onChange(of: store.isLoadingClients) { _, isLoading in
+                    if !isLoading {
+                        NotificationManager.shared.rescheduleAll(clients: store.clients)
+                    }
+                }
+                .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
+                    hasSeenOnboarding = true
+                }) {
+                    OnboardingView(isPresented: $showOnboarding)
+                }
         } else {
             loginView
         }
@@ -37,7 +56,7 @@ struct ContentView: View {
                 .tabItem { Label("Статистика", systemImage: "chart.bar.fill") }
 
             AccountView()
-                .tabItem { Label("Аккаунт", systemImage: "person.circle.fill") }
+                .tabItem { Label("Профиль", systemImage: "person.circle.fill") }
         }
         // Показываем системный алерт, если ClientStore зарепортил ошибку Firestore.
         .alert(
@@ -180,7 +199,7 @@ struct ContentView: View {
             forgotPasswordSheet
         }
         .onAppear {
-            if rememberMe, let saved = UserDefaults.standard.string(forKey: "savedEmail") {
+            if rememberMe, let saved = KeychainHelper.shared.get(forKey: KeychainHelper.Key.savedEmail) {
                 email = saved
             }
         }
@@ -310,9 +329,9 @@ struct ContentView: View {
             authState.register(email: email, password: password)
         } else {
             if rememberMe {
-                UserDefaults.standard.set(email, forKey: "savedEmail")
+                KeychainHelper.shared.set(email, forKey: KeychainHelper.Key.savedEmail)
             } else {
-                UserDefaults.standard.removeObject(forKey: "savedEmail")
+                KeychainHelper.shared.delete(forKey: KeychainHelper.Key.savedEmail)
             }
             authState.login(email: email, password: password)
         }

@@ -36,7 +36,14 @@
 		01EB9EED2F915CF400EC4450 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 01EB9EEC2F915CF400EC4450 /* FirebaseFirestore */; };
 		01EB9EEF2F915FCD00EC4450 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01EB9EEE2F915FC400EC4450 /* AccountView.swift */; };
 		01EB9EF12F91FE4200EC4450 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 01EB9EF02F91FE4200EC4450 /* GoogleService-Info.plist */; };
-/* End PBXBuildFile section */
+				E35E89633A1E4C5FA40ECC27 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403BE097F2064A1494E31253 /* KeychainHelper.swift */; };
+				31AC97662A4A45409DC1A214 /* ProfilePhotoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E06C6095B664F2A85BAD713 /* ProfilePhotoManager.swift */; };
+				0F6BD38461C34F4BABABC21F /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED20269DEA3473B864B72A9 /* SubscriptionManager.swift */; };
+				2E289BEB0C3A404B96B20F6D /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FEFB42D27DA4DFEB8F6F5BA /* NotificationManager.swift */; };
+				D3397F50816A4198B628F8D7 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C7EAA98EC2A4BB59B9FFD5D /* EmptyStateView.swift */; };
+				EF5F506154D649CBB14DB639 /* AddWorkoutFromCalendarSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784BA866A74F49FBB1BB431B /* AddWorkoutFromCalendarSheet.swift */; };
+				73B9932AB05147CCAE6B40EB /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 997C480956514DDB8E4E604F /* OnboardingView.swift */; };
+		/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		011DA1B62F4B51BF006FA149 /* AddClientView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddClientView.swift; sourceTree = "<group>"; };
@@ -66,7 +73,14 @@
 		01C587E92F5359F000D08413 /* ContactUIKitPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactUIKitPicker.swift; sourceTree = "<group>"; };
 		01EB9EEE2F915FC400EC4450 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		01EB9EF02F91FE4200EC4450 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+				403BE097F2064A1494E31253 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+				8E06C6095B664F2A85BAD713 /* ProfilePhotoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePhotoManager.swift; sourceTree = "<group>"; };
+				CED20269DEA3473B864B72A9 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+				3FEFB42D27DA4DFEB8F6F5BA /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+				8C7EAA98EC2A4BB59B9FFD5D /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+				784BA866A74F49FBB1BB431B /* AddWorkoutFromCalendarSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddWorkoutFromCalendarSheet.swift; sourceTree = "<group>"; };
+				997C480956514DDB8E4E604F /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		/* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		01A1343D2F44405C00AB24C8 /* TrainerCRM */ = {
@@ -101,11 +115,19 @@
 		011DA1C62F4B8130006FA149 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				997C480956514DDB8E4E604F /* OnboardingView.swift */,
+				997C480956514DDB8E4E604F /* OnboardingView.swift */,
+				784BA866A74F49FBB1BB431B /* AddWorkoutFromCalendarSheet.swift */,
+				784BA866A74F49FBB1BB431B /* AddWorkoutFromCalendarSheet.swift */,
+				8C7EAA98EC2A4BB59B9FFD5D /* EmptyStateView.swift */,
+				8C7EAA98EC2A4BB59B9FFD5D /* EmptyStateView.swift */,
 				01EB9EEE2F915FC400EC4450 /* AccountView.swift */,
 				011DA1BB2F4B51BF006FA149 /* ContentView.swift */,
 				011DA1B92F4B51BF006FA149 /* ClientDetailView.swift */,
 				01AB00012F9000001AB00001 /* SubscriptionHistoryView.swift */,
 				011DA1B62F4B51BF006FA149 /* AddClientView.swift */,
+
+
 				011DA1B72F4B51BF006FA149 /* AddWorkoutView.swift */,
 				01C587302F4CDBC100D08413 /* ClientsListView.swift */,
 				01C587322F4CDE0F00D08413 /* TodayWorkoutsView.swift */,
@@ -130,6 +152,14 @@
 		011DA1C82F4B8188006FA149 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				3FEFB42D27DA4DFEB8F6F5BA /* NotificationManager.swift */,
+				3FEFB42D27DA4DFEB8F6F5BA /* NotificationManager.swift */,
+				CED20269DEA3473B864B72A9 /* SubscriptionManager.swift */,
+				CED20269DEA3473B864B72A9 /* SubscriptionManager.swift */,
+				8E06C6095B664F2A85BAD713 /* ProfilePhotoManager.swift */,
+				8E06C6095B664F2A85BAD713 /* ProfilePhotoManager.swift */,
+				403BE097F2064A1494E31253 /* KeychainHelper.swift */,
+				403BE097F2064A1494E31253 /* KeychainHelper.swift */,
 				01C5872C2F4CDA2700D08413 /* ClientStore.swift */,
 				01C587E12F5359C000D08413 /* AuthState.swift */,
 			);
@@ -254,6 +284,8 @@
 				01C587E72F5359E000D08413 /* MainTabSafeArea.swift in Sources */,
 				01C587EA2F5359F000D08413 /* ContactUIKitPicker.swift in Sources */,
 				011DA1BD2F4B51BF006FA149 /* AddClientView.swift in Sources */,
+
+
 				01C587372F4D92EF00D08413 /* WorkoutDetailView.swift in Sources */,
 				01C587A72F51999800D08413 /* SubscriptionView.swift in Sources */,
 				01C587312F4CDBC100D08413 /* ClientsListView.swift in Sources */,
@@ -269,6 +301,13 @@
 				011DA1BF2F4B51BF006FA149 /* ClientDetailView.swift in Sources */,
 				01AB00022F9000001AB00002 /* SubscriptionHistoryView.swift in Sources */,
 				01EB9EEF2F915FCD00EC4450 /* AccountView.swift in Sources */,
+				73B9932AB05147CCAE6B40EB /* OnboardingView.swift in Sources */,
+				EF5F506154D649CBB14DB639 /* AddWorkoutFromCalendarSheet.swift in Sources */,
+				D3397F50816A4198B628F8D7 /* EmptyStateView.swift in Sources */,
+				2E289BEB0C3A404B96B20F6D /* NotificationManager.swift in Sources */,
+				0F6BD38461C34F4BABABC21F /* SubscriptionManager.swift in Sources */,
+				31AC97662A4A45409DC1A214 /* ProfilePhotoManager.swift in Sources */,
+				E35E89633A1E4C5FA40ECC27 /* KeychainHelper.swift in Sources */,
 				011DA1C12F4B51BF006FA149 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

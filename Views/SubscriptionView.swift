@@ -338,9 +338,13 @@ struct AddSubscriptionSheet: View {
         return f.string(from: NSNumber(value: per)) ?? String(format: "%.2f", per)
     }
     
+    private var datesAreValid: Bool {
+        endDate >= startDate
+    }
+
     private var canSave: Bool {
         guard let price = packagePriceValue else { return false }
-        return price > 0 && totalSessions > 0
+        return price > 0 && totalSessions > 0 && datesAreValid
     }
 
     var body: some View {
@@ -376,7 +380,18 @@ struct AddSubscriptionSheet: View {
                 }
                 Section("Период") {
                     DatePicker("Начало", selection: $startDate, displayedComponents: .date)
+                        .onChange(of: startDate) { _, newStart in
+                            // Если начало переехало позже конца — сдвигаем конец
+                            if endDate < newStart {
+                                endDate = Calendar.current.date(byAdding: .month, value: 1, to: newStart) ?? newStart
+                            }
+                        }
                     DatePicker("Истекает", selection: $endDate, in: startDate..., displayedComponents: .date)
+                    if !datesAreValid {
+                        Text("Дата окончания не может быть раньше даты начала")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                 }
                 Section("Стоимость") {
                     TextField("Стоимость пакета", text: $packagePriceText)

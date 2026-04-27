@@ -6,39 +6,15 @@ struct WorkoutDetailView: View {
     var clientName: String? = nil
 
     @EnvironmentObject var store: ClientStore
-    @State private var showAddExercise = false
-    @State private var exerciseToEdit: Exercise? = nil
-    @State private var showReschedule = false
+    @State private var showStatusHelp = false
 
     var body: some View {
         List {
             workoutInfoSection
-            exercisesSection
         }
         .navigationTitle("Тренировка")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 12) {
-                   
-                    Button {
-                        showAddExercise = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showAddExercise) {
-            ExerciseFormView { newExercise in
-                workout.exercises.append(newExercise)
-            }
-        }
-        .sheet(item: $exerciseToEdit) { exercise in
-            ExerciseFormView(existing: exercise) { updated in
-                if let idx = workout.exercises.firstIndex(where: { $0.id == updated.id }) {
-                    workout.exercises[idx] = updated
-                }
-            }
+        .sheet(isPresented: $showStatusHelp) {
+            WorkoutStatusHelpView()
         }
     }
 
@@ -70,6 +46,14 @@ struct WorkoutDetailView: View {
             HStack {
                 Image(systemName: statusIcon).foregroundColor(statusColor)
                 Text("Статус")
+                Button {
+                    showStatusHelp = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 Menu {
                     ForEach(WorkoutStatus.allCases, id: \.self) { s in
@@ -98,43 +82,6 @@ struct WorkoutDetailView: View {
         }
     }
 
-    // MARK: - Упражнения
-
-    private var exercisesSection: some View {
-        Section {
-            if workout.exercises.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "dumbbell")
-                        .font(.system(size: 28))
-                        .foregroundColor(.secondary)
-                    Text("Нет упражнений").foregroundColor(.secondary)
-                    Button("Добавить упражнение") { showAddExercise = true }
-                        .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-            } else {
-                ForEach(workout.exercises) { exercise in
-                    ExerciseRow(exercise: exercise)
-                        .contentShape(Rectangle())
-                        .onTapGesture { exerciseToEdit = exercise }
-                }
-                .onDelete { indexSet in
-                    workout.exercises.remove(atOffsets: indexSet)
-                }
-                .onMove { from, to in
-                    workout.exercises.move(fromOffsets: from, toOffset: to)
-                }
-            }
-        } header: {
-            HStack {
-                Text("Упражнения (\(workout.exercises.count))")
-                Spacer()
-                if !workout.exercises.isEmpty { EditButton().font(.caption) }
-            }
-        }
-    }
-
     private var statusIcon: String {
         switch workout.status {
         case .planned:   return "clock"
@@ -150,6 +97,119 @@ struct WorkoutDetailView: View {
         case .completed: return .green
         case .cancelled: return .red
         case .noShow:    return .orange
+        }
+    }
+}
+
+// MARK: - Status Help Sheet
+
+struct WorkoutStatusHelpView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let statuses: [(icon: String, color: Color, title: String, description: String, counted: Bool?)] = [
+        (
+            icon: "clock",
+            color: .blue,
+            title: "Запланировано",
+            description: "Тренировка ещё не проведена. Занятие пока не списывается.",
+            counted: nil
+        ),
+        (
+            icon: "checkmark.circle.fill",
+            color: .green,
+            title: "Проведена",
+            description: "Тренировка прошла в штатном режиме. Занятие списывается с абонемента.",
+            counted: true
+        ),
+        (
+            icon: "exclamationmark.triangle.fill",
+            color: .orange,
+            title: "Неявка",
+            description: "Клиент не пришёл и не предупредил заранее. Тренер потратил время — занятие списывается с абонемента как проведённое.",
+            counted: true
+        ),
+        (
+            icon: "xmark.circle.fill",
+            color: .red,
+            title: "Отмена",
+            description: "Тренировка отменена заблаговременно. Занятие НЕ списывается — клиент сможет его использовать позже.",
+            counted: false
+        ),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(
+                                LinearGradient(colors: [.blue, .purple], startPoint: .top, endPoint: .bottom)
+                            )
+                        Text("Статусы тренировок")
+                            .font(.title2.bold())
+                        Text("От статуса зависит учёт занятий в абонементе")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 8)
+                    .padding(.horizontal)
+
+                    // Status cards
+                    VStack(spacing: 12) {
+                        ForEach(statuses.indices, id: \.self) { i in
+                            let s = statuses[i]
+                            HStack(alignment: .top, spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(s.color.opacity(0.15))
+                                        .frame(width: 48, height: 48)
+                                    Image(systemName: s.icon)
+                                        .font(.system(size: 20))
+                                        .foregroundColor(s.color)
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(spacing: 8) {
+                                        Text(s.title)
+                                            .font(.subheadline.bold())
+
+                                        if let counted = s.counted {
+                                            Text(counted ? "списывается" : "не списывается")
+                                                .font(.caption.bold())
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 3)
+                                                .background(counted ? Color.orange.opacity(0.15) : Color.green.opacity(0.15))
+                                                .foregroundColor(counted ? .orange : .green)
+                                                .cornerRadius(20)
+                                        }
+                                    }
+                                    Text(s.description)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer()
+                            }
+                            .padding(16)
+                            .background(Color(.secondarySystemBackground))
+                            .cornerRadius(14)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Понятно") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
         }
     }
 }

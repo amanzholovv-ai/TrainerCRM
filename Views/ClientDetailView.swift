@@ -17,9 +17,14 @@ struct ClientDetailView: View {
 
     enum ClientField { case name, phone }
 
-    // Сортируем один раз — используем везде
+    // Только тренировки текущего абонемента.
+    // Старые (с предыдущих абонементов) остаются в client.workouts
+    // чтобы SubscriptionHistoryDetailView мог читать их по subscriptionId,
+    // но в главном списке они не показываются.
     private var sortedWorkouts: [Workout] {
-        client.workouts.sorted { $0.date < $1.date }
+        client.workouts
+            .filter { $0.subscriptionId == client.currentSubscriptionId }
+            .sorted { $0.date < $1.date }
     }
 
     var body: some View {
@@ -230,8 +235,8 @@ struct ClientDetailView: View {
 
         let weekdays: [Bool] = client.weekdaySelected ?? [true, false, true, false, true, false, false]
 
-        let time: Date = client.trainingTime
-            ?? calendar.date(from: DateComponents(hour: 10, minute: 0))!
+        let fallbackTime = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: Date()) ?? Date()
+        let time: Date = client.trainingTime ?? fallbackTime
         let totalSessions = client.totalSessions > 0 ? client.totalSessions : 10
 
         let avgSessionPrice: Double = {

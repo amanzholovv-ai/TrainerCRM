@@ -8,6 +8,8 @@ final class ClientStore: ObservableObject {
     @Published var history: [WorkoutHistoryRecord] = []
     /// Последнее сообщение об ошибке Firestore. UI может показать баннер/алерт.
     @Published var lastError: String?
+    /// true пока первый снапшот из Firestore ещё не пришёл.
+    @Published var isLoadingClients: Bool = false
 
     private var db = Firestore.firestore()
     private var listener: ListenerRegistration?
@@ -58,15 +60,16 @@ final class ClientStore: ObservableObject {
 
     private func startListening() {
         guard let userId = userId else { return }
+        isLoadingClients = true
         listener = db.collection("users").document(userId).collection("clients")
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
                 if let error = error {
                     self.reportError(error, context: "Загрузка клиентов")
+                    DispatchQueue.main.async { self.isLoadingClients = false }
                     return
                 }
                 guard let snapshot = snapshot else { return }
-                // СТАЛО:
                 let decoded = snapshot.documents.compactMap { doc -> Client? in
                     guard let jsonString = doc.data()["json"] as? String,
                           let data = jsonString.data(using: .utf8) else { return nil }
@@ -79,9 +82,10 @@ final class ClientStore: ObservableObject {
                         return nil
                     }
                 }
-                
+
                 DispatchQueue.main.async {
                     self.clients = decoded.sorted { $0.name < $1.name }
+                    self.isLoadingClients = false
                 }
             }
 
@@ -108,21 +112,26 @@ final class ClientStore: ObservableObject {
 
     private func saveClient(_ client: Client) {
         guard let userId = userId else { return }
-        guard let data = try? JSONEncoder().encode(client),
-              let jsonString = String(data: data, encoding: .utf8)
-        else {
-            DispatchQueue.main.async { [weak self] in
-                self?.lastError = "Сохранение клиента: не удалось сериализовать данные"
+        do {
+            let data = try JSONEncoder().encode(client)
+            guard let jsonString = String(data: data, encoding: .utf8) else {
+                reportError(
+                    NSError(domain: "ClientStore", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Не удалось конвертировать данные клиента в строку"]),
+                    context: "Сохранение клиента"
+                )
+                return
             }
-            return
-        }
-        db.collection("users").document(userId).collection("clients")
-            .document(client.id.uuidString)
-            .setData(["json": jsonString]) { [weak self] error in
-                if let error = error {
-                    self?.reportError(error, context: "Сохранение клиента")
+            db.collection("users").document(userId).collection("clients")
+                .document(client.id.uuidString)
+                .setData(["json": jsonString]) { [weak self] error in
+                    if let error = error {
+                        self?.reportError(error, context: "Сохранение клиента")
+                    }
                 }
-            }
+        } catch {
+            reportError(error, context: "Сериализация клиента")
+        }
     }
 
     private func deleteClientFromFirestore(_ clientId: UUID) {
@@ -140,21 +149,26 @@ final class ClientStore: ObservableObject {
 
     private func saveHistory(_ record: WorkoutHistoryRecord) {
         guard let userId = userId else { return }
-        guard let data = try? JSONEncoder().encode(record),
-              let jsonString = String(data: data, encoding: .utf8)
-        else {
-            DispatchQueue.main.async { [weak self] in
-                self?.lastError = "Сохранение истории: не удалось сериализовать данные"
+        do {
+            let data = try JSONEncoder().encode(record)
+            guard let jsonString = String(data: data, encoding: .utf8) else {
+                reportError(
+                    NSError(domain: "ClientStore", code: -2,
+                            userInfo: [NSLocalizedDescriptionKey: "Не удалось конвертировать запись истории в строку"]),
+                    context: "Сохранение истории"
+                )
+                return
             }
-            return
-        }
-        db.collection("users").document(userId).collection("history")
-            .document(record.id.uuidString)
-            .setData(["json": jsonString]) { [weak self] error in
-                if let error = error {
-                    self?.reportError(error, context: "Сохранение истории")
+            db.collection("users").document(userId).collection("history")
+                .document(record.id.uuidString)
+                .setData(["json": jsonString]) { [weak self] error in
+                    if let error = error {
+                        self?.reportError(error, context: "Сохранение истории")
+                    }
                 }
-            }
+        } catch {
+            reportError(error, context: "Сериализация истории")
+        }
     }
 
     private func deleteHistory(recordId: UUID) {
@@ -238,12 +252,38 @@ final class ClientStore: ObservableObject {
 
         var newWorkout = workout
         newWorkout.price = pricePerWorkout == 0 ? newWorkout.price : pricePerWorkout
-        newWorkout.subscriptionId = client.currentSubscriptionId 
+        newWorkout.subscriptionId = client.currentSubscriptionId
 
         client.workouts.append(newWorkout)
 
+        // Если тренировка сразу создаётся со статусом completed/noShow —
+        // attendance record нужно создать немедленно, иначе она не попадёт
+        // в счётчик remainingSessions (setWorkoutStatus не будет вызван).
+        let isChargeable = newWorkout.status == .completed || newWorkout.status == .noShow
+        if isChargeable {
+            let wasPresent = newWorkout.status == .completed
+            client.attendance.append(AttendanceRecord(
+                date: newWorkout.date,
+                wasPresent: wasPresent,
+                workoutId: newWorkout.id
+            ))
+        }
+
         clients[idx] = client
         saveClient(client)
+
+        // Уведомление — только для запланированных будущих тренировок и если включены
+        if newWorkout.status == .planned,
+           newWorkout.date > Date(),
+           UserDefaults.standard.bool(forKey: "notifications_enabled") {
+            let minutes = UserDefaults.standard.integer(forKey: "notifications_minutesBefore")
+            NotificationManager.shared.scheduleWorkoutReminder(
+                workoutId: newWorkout.id,
+                clientName: client.name,
+                date: newWorkout.date,
+                minutesBefore: minutes == 0 ? 60 : minutes
+            )
+        }
     }
     
     func removeWorkout(workoutId: UUID, clientId: UUID) {
@@ -255,6 +295,7 @@ final class ClientStore: ObservableObject {
         // и не продолжала списывать занятие из абонемента.
         clients[cIdx].attendance.removeAll { $0.workoutId == workoutId }
         saveClient(clients[cIdx])
+        NotificationManager.shared.cancelReminder(workoutId: workoutId)
         // Явное удаление отдельной тренировки — снимаем и из истории
         deleteHistory(recordId: workoutId)
         history.removeAll { $0.id == workoutId }
@@ -317,6 +358,19 @@ final class ClientStore: ObservableObject {
             if let wIdx = clients[clientIdx].workouts.firstIndex(where: { $0.id == workoutId }) {
                 clients[clientIdx].workouts[wIdx].date = newDate
                 saveClient(clients[clientIdx])
+                // Перепланируем уведомление на новое время
+                let client  = clients[clientIdx]
+                let workout = client.workouts[wIdx]
+                NotificationManager.shared.cancelReminder(workoutId: workoutId)
+                if workout.status == .planned, newDate > Date() {
+                    let minutes = UserDefaults.standard.integer(forKey: "notifications_minutesBefore")
+                    NotificationManager.shared.scheduleWorkoutReminder(
+                        workoutId: workoutId,
+                        clientName: client.name,
+                        date: newDate,
+                        minutesBefore: minutes == 0 ? 60 : minutes
+                    )
+                }
                 return
             }
         }
@@ -397,6 +451,7 @@ final class ClientStore: ObservableObject {
 
     func addSubscription(_ subscription: Subscription, to clientId: UUID, isExtension: Bool = false) {
         guard let idx = clients.firstIndex(where: { $0.id == clientId }) else { return }
+        guard subscription.endDate >= subscription.startDate else { return }
         let sessions = max(1, subscription.totalSessions)
         let dates = Self.workoutDates(
             startDate: subscription.startDate,
@@ -458,6 +513,7 @@ final class ClientStore: ObservableObject {
     /// а запланированные перегенерируются из новых настроек.
     func updateSubscription(_ subscription: Subscription, for clientId: UUID) {
         guard let idx = clients.firstIndex(where: { $0.id == clientId }) else { return }
+        guard subscription.endDate >= subscription.startDate else { return }
         var client = clients[idx]
 
         let sessions = max(1, subscription.totalSessions)
@@ -529,8 +585,8 @@ final class ClientStore: ObservableObject {
         saveClient(client)
     }
 
-    /// Продление абонемента: новые запланированные тренировки добавляются,
-    /// старые проведённые / неявки / отменённые — СОХРАНЯЮТСЯ в истории клиента.
+    /// Продление абонемента: старый сохраняется в историю, создаётся новый.
+    /// Проведённые / неявки / отменённые тренировки сохраняются у клиента.
     /// Удаляем только прошлые `.planned`, чтобы не было дублей с новыми датами.
     func renewSubscription(for clientId: UUID, subscription: Subscription) {
         guard let idx = clients.firstIndex(where: { $0.id == clientId }) else { return }
@@ -542,6 +598,26 @@ final class ClientStore: ObservableObject {
             guard let p = subscription.packagePrice, sessions > 0 else { return nil }
             return p / Double(sessions)
         }()
+
+        // ── Сохраняем старый абонемент в историю (как в addSubscription) ──
+        if let oldId = client.currentSubscriptionId,
+           client.totalSessions > 0,
+           !(client.subscriptionHistory ?? []).contains(where: { $0.id == oldId }) {
+            let record = SubscriptionRecord(
+                id: oldId,
+                startDate: client.startDate,
+                endDate: client.endDate,
+                totalSessions: client.totalSessions,
+                packagePrice: client.packagePrice,
+                notes: client.subscriptionNotes
+            )
+            if client.subscriptionHistory == nil { client.subscriptionHistory = [] }
+            client.subscriptionHistory!.append(record)
+        }
+
+        // Новый ID абонемента
+        let newSubscriptionId = UUID()
+        client.currentSubscriptionId = newSubscriptionId
 
         // Сохраняем всё, что НЕ запланировано: проведённые, неявки, отменённые.
         let preservedWorkouts = client.workouts.filter { $0.status != .planned }
@@ -555,13 +631,12 @@ final class ClientStore: ObservableObject {
             trainingTime: subscription.trainingTime,
             calendar: calendar
         )
-        // СТАЛО:
         let newPlanned: [Workout] = newDates.map { d in
             Workout(
                 date: d, exercises: [],
                 price: perWorkoutPrice,
                 notes: note.isEmpty ? nil : note,
-                subscriptionId: client.currentSubscriptionId
+                subscriptionId: newSubscriptionId
             )
         }
 

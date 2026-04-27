@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Запрещаем всё по умолчанию ──────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── Данные пользователя ──────────────────────────────────────────────
+    // Каждый аутентифицированный пользователь может читать и писать
+    // ТОЛЬКО в свою ветку /users/{userId}/...
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // ── Клиенты ─────────────────────────────────────────────────────────
+    match /users/{userId}/clients/{clientId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+
+      // Проверяем что документ содержит обязательное поле "json"
+      // и его размер не превышает разумный лимит (500KB)
+      allow create, update: if request.auth != null
+                             && request.auth.uid == userId
+                             && request.resource.data.keys().hasAll(["json"])
+                             && request.resource.data.json is string
+                             && request.resource.data.json.size() < 500000;
+    }
+
+    // ── История тренировок ───────────────────────────────────────────────
+    match /users/{userId}/history/{recordId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+
+      allow create, update: if request.auth != null
+                             && request.auth.uid == userId
+                             && request.resource.data.keys().hasAll(["json"])
+                             && request.resource.data.json is string;
+    }
+  }
+}

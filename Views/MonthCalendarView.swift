@@ -6,6 +6,7 @@ struct MonthCalendarView: View {
 
     @State private var selectedDate: Date
     @State private var editingRef: WorkoutRef?
+    @State private var addingWorkout = false
 
     init(store: ClientStore, currentMonth: Date) {
         self.store = store
@@ -55,6 +56,9 @@ struct MonthCalendarView: View {
         .background(Color.black)
         .sheet(item: $editingRef) { ref in
             CalendarWorkoutEditSheet(store: store, ref: ref)
+        }
+        .sheet(isPresented: $addingWorkout) {
+            AddWorkoutFromCalendarSheet(store: store, preselectedDate: selectedDate)
         }
     }
 
@@ -122,6 +126,13 @@ struct MonthCalendarView: View {
                     .font(.headline)
                     .foregroundColor(Color.white)
                 Spacer()
+                Button {
+                    addingWorkout = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
             }
             .padding(.horizontal, 4)
             .padding(.top, 12)
